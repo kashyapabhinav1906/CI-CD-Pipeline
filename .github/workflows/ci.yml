@@ -33,10 +33,27 @@ jobs:
     - name: yarn build
       run: |
         yarn run build --if-present
+        
+    - name: Cache Gradle Dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.gradle/caches
+        key: ${{ runner.os }}-gradle-caches-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+        restore-keys: |
+          ${{ runner.os }}-gradle-caches-
     
-    - name: Add remote origin
+    - name: Distribute app via Firebase App Distribution
+      env:
+          firebaseToken: ${{ secrets.FIREBASE_TOKEN }}
+          firebaseGroups: ${{ secrets.FIREBASE_GROUPS }}
+          firebaseAppId: ${{ secrets.FIREBASE_APP_ID }}
+          notes: ${{ github.event.head_commit.message }}
       run: |
-        git remote add heroku https://heroku:${{ secrets.HEROKU_API_KEY }}@git.heroku.com/${{ secrets.HEROKU_APP_NAME }}.git
-    - name: Deploy to Heroku
-      run: |
-        git push heroku HEAD:master -f
+        yarn global add firebase-tools
+        export PATH="$(yarn global bin):$PATH"
+        firebase \
+          appdistribution:distribute android/app/build/outputs/apk/release/app-release.apk \
+          --app $firebaseAppId \
+          --release-notes "$notes" \
+          --groups "$firebaseGroups" \
+          --token "$firebaseToken"
